@@ -64,6 +64,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     // Dereference the window object
+    mainWindow = null;  
   });
 }
 
