@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,17 +7,63 @@ const __dirname = path.dirname(__filename);
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-// #region agent log
-console.log('[DEBUG] App starting', { isDev, NODE_ENV: process.env.NODE_ENV, isPackaged: app.isPackaged, __dirname });
-// #endregion
+// Get Content Security Policy string
+function getContentSecurityPolicy(): string {
+  // Development CSP: allows unsafe-eval for Vite HMR
+  const devCSP = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' http://localhost:*",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: http://localhost:*",
+    "font-src 'self' data:",
+    "connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*",
+  ].join('; ');
+
+  // Production CSP: strict, no unsafe-eval
+  const prodCSP = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+  ].join('; ');
+
+  return isDev ? devCSP : prodCSP;
+}
+
+// Set Content Security Policy via webRequest (for all resources including initial document)
+function setContentSecurityPolicyViaWebRequest() {
+  const csp = getContentSecurityPolicy();
+
+  const handler = (details: any, callback: any) => {
+    // Only modify headers for main frame and subresources, not devtools
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subresource') {
+      const responseHeaders = {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      };
+      
+      callback({
+        responseHeaders,
+      });
+    } else {
+      callback({ responseHeaders: details.responseHeaders });
+    }
+  };
+  
+  // Use filter to catch all HTTP/HTTPS requests
+  const filter = {
+    urls: ['http://*/*', 'https://*/*'],
+  };
+  
+  session.defaultSession.webRequest.onHeadersReceived(filter, handler);
+}
+
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
-  // #region agent log
-  console.log('[DEBUG] createWindow called', { preloadPath: path.join(__dirname, 'preload.js') });
-  // #endregion
-  
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -32,33 +78,17 @@ function createWindow() {
     show: false,
   });
 
-  // #region agent log
-  console.log('[DEBUG] BrowserWindow created');
-  // #endregion
-
   if (isDev) {
-    // #region agent log
-    console.log('[DEBUG] Loading dev URL', { url: 'http://localhost:5173' });
-    // #endregion
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
     const filePath = path.join(__dirname, '../dist/index.html');
-    // #region agent log
-    console.log('[DEBUG] Loading production file', { filePath });
-    // #endregion
     mainWindow.loadFile(filePath);
   }
 
   mainWindow.once('ready-to-show', () => {
-    // #region agent log
-    console.log('[DEBUG] ready-to-show fired');
-    // #endregion
     if (mainWindow) {
       mainWindow.show();
-      // #region agent log
-      console.log('[DEBUG] Window shown');
-      // #endregion
     }
   });
 
@@ -68,14 +98,17 @@ function createWindow() {
   });
 }
 
-// #region agent log
-console.log('[DEBUG] Waiting for app.whenReady()');
-// #endregion
+// Set CSP handler as early as possible - before app.whenReady()
+// This ensures CSP is set before any windows are created
+if (app.isReady()) {
+  setContentSecurityPolicyViaWebRequest();
+} else {
+  app.once('ready', () => {
+    setContentSecurityPolicyViaWebRequest();
+  });
+}
 
 app.whenReady().then(() => {
-  // #region agent log
-  console.log('[DEBUG] app.whenReady() resolved');
-  // #endregion
   createWindow();
 
   app.on('activate', () => {
@@ -86,9 +119,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // #region agent log
-  console.log('[DEBUG] window-all-closed event');
-  // #endregion
   if (process.platform !== 'darwin') {
     app.quit();
   }
