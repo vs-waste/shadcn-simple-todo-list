@@ -21,6 +21,17 @@ const config = defineConfig({
       },
       {
         entry: 'electron/preload.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                format: 'cjs',
+                inlineDynamicImports: true,
+                entryFileNames: 'preload.cjs',
+              },
+            },
+          },
+        },
       },
     ]),
   ],
@@ -31,4 +42,3 @@ const config = defineConfig({
 });
 
 export default config;
-

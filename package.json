@@ -1,7 +1,6 @@
 {
   "name": "shadcn-simple-todo-list",
   "version": "1.0.0",
-  "type": "module",
   "description": "A simple todo list app built with Electron, React, and shadcn/ui",
   "main": "dist-electron/main.js",
   "scripts": {
