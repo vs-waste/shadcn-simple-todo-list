@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "build:prod": "cross-env NODE_ENV=production npm run build",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "npm run build && electron-builder",
-    "electron:pack": "npm run build && electron-builder --dir"
+    "electron:build": "npm run build:prod && electron-builder",
+    "electron:build:installer": "npm run build:prod && electron-builder --win nsis",
+    "electron:build:portable": "npm run build:prod && electron-builder --win portable",
+    "electron:pack": "npm run build:prod && electron-builder --dir"
   },
   "keywords": [
     "electron",
@@ -26,6 +29,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "electron": "^39.2.7",
     "electron-builder": "^24.9.1",
     "postcss": "^8.4.32",
@@ -68,15 +72,24 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
-      ],
-      "icon": "build/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     }
   }
 }
